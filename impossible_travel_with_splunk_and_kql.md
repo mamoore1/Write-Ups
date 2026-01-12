@@ -153,6 +153,27 @@ Which gives us the distance in kilometres. Now, we can apply our filtering, noti
 And this gives us the expected single result!
 <img width="1338" height="134" alt="image6" src="https://github.com/user-attachments/assets/cd79566c-316b-4765-9922-5f64a1d41eaa" />
 
+### The full KQL query (untested!)
+
+```kql
+SecurityEvent
+| where EventID == 4624 and LogonType == 10
+| distinct TimeGenerated, TargetUserName, IpAddress
+| join kind=inner (
+    SecurityEvent
+    | where EventID == 4624 and LogonType == 10
+    | distinct TimeGenerated, TargetUserName, IpAddress
+) on TargetUserName
+| where TimeGenerated < TimeGenerated1
+| where IpAddress != IpAddress1
+| extend geo = geo_info_from_ip_address(IpAddress), geo1 = geo_info_from_ip_address(IpAddress1)
+| extend DistanceKm = geo_distance_2points(geo.longitude, geo.latitude, geo1.longitude, geo1.latitude) / 1000
+| extend TravelTimeHours = (TimeGenerated1 - TimeGenerated) / 1h
+| extend TravelSpeedKmh = DistanceKm / TravelTimeHours
+| where TravelSpeedKmh > 1000
+| project TimeGenerated, TimeGenerated1, TargetUserName, IpAddress, IpAddress1, TravelSpeedKmh, DistanceKm
+```
+
 ### The full SPL query
 
 ```spl
