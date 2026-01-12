@@ -28,11 +28,19 @@ The idea is:
 
 People who have thought further ahead than I did will have noticed that I can't really simulate impossible travel on a home lab that is located on one laptop with no internet connection. Unfortunately, I did not think that far ahead. This is where my good friend Claude steps in to help me generate some alerts. To do this, I took an existing login event from my logs, and uploaded it to Claude, asking it to generate 2 RDP login events (i.e., LogonType 10), one from the UK and one from Australia.
 
+![Original event, dumped from Splunk](https://github.com/user-attachments/assets/a22e424a-c237-4b1e-a691-debebe587dfd)
+*Original event, dumped from Splunk*
+
+![New events created](https://github.com/user-attachments/assets/a399afea-2255-4550-a99a-a2b9be182a90)
+*New events created*
+
 From the main page I then went to Settings -> Add Data -> Upload and uploaded the CSV file. Splunk set the sourcetype to csv, so going forward I'll be using `(sourcetype="WinEventLog:Security" OR sourcetype="csv")` to show both datasets.
+
+<img width="1832" height="453" alt="image4" src="https://github.com/user-attachments/assets/ef280961-7347-499a-9f9a-e31c3d98cec5" />
 
 ## Next step: querying for impossible travel
 
-Now, part of the reason I wanted to do Impossible Travel as a first detection is that I thought it was going to be (relatively) easy. I have more familiarity with Windows Analytics Logs and KQL, and in KQL you can use functions like `geo_info_from_ip_address` and `geo_distance_2points` to determine the distances. It turns out this is more complicated in SPL.
+Now, part of the reason I wanted to do Impossible Travel as a first detection is that I thought it was going to be (relatively) easy. I have more familiarity with Windows Analytics Logs and KQL, and in KQL you can use functions like [geo_info_from_ip_address](https://learn.microsoft.com/en-us/kusto/query/geo-info-from-ip-address-function?view=microsoft-fabric) and [geo_distance_2points](https://learn.microsoft.com/en-us/kusto/query/geo-distance-2points-function?view=microsoft-fabric) to determine the distances. It turns out this is more complicated in SPL.
 
 ### The KQL approach
 
@@ -95,7 +103,9 @@ index="main" (sourcetype="WinEventLog:Security" OR sourcetype="csv") EventCode="
 
 This is simple enough; it's mostly the same, although we need to add in `max=0` because by default SPL only matches each main search result to 1 subsearch result. Also, Splunk doesn't like it when custom fields start with underscores, so we renamed `_time` from the subsearch to `time1`. The query so far gives us basically what we would expect, which is a bunch of different pairs of login events (once again, my great research assistant Claude helped generate a bunch more LogonType 10 events).
 
-Now we need to narrow this down to just those pairs where impossible travel is happening. We can get location information using `iplocation`:
+<img width="1013" height="562" alt="image2" src="https://github.com/user-attachments/assets/cfc48bd5-fb1e-41f4-95f2-7d3e5282c3b6" />
+
+Now we need to narrow this down to just those pairs where impossible travel is happening. We can get location information using [iplocation](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.3/search-commands/iplocation):
 
 ```spl
 | iplocation Source_Network_Address
@@ -106,7 +116,7 @@ Similarly to `geo_info_from_ip_address`, this gives us a bunch of other informat
 
 ### The Haversine formula
 
-To calculate the distance between two points on the earth's surface, we use something called the Haversine formula, which calculates the shortest distance over the Earth's surface. At times like this I wish I'd paid better attention in maths class (and probably learned LaTeX), but it looks like this:
+To calculate the distance between two points on the earth's surface, we use something called the [Haversine formula](https://en.wikipedia.org/wiki/Haversine_formula), which calculates the shortest distance over the Earth's surface. At times like this I wish I'd paid better attention in maths class (and probably learned LaTeX), but it looks like this:
 
 ```
 a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
@@ -141,6 +151,7 @@ Which gives us the distance in kilometres. Now, we can apply our filtering, noti
 ```
 
 And this gives us the expected single result!
+<img width="1338" height="134" alt="image6" src="https://github.com/user-attachments/assets/cd79566c-316b-4765-9922-5f64a1d41eaa" />
 
 ### The full SPL query
 
